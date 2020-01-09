@@ -13,12 +13,16 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import com.squareup.picasso.Picasso
 import kotlinx.android.synthetic.main.activity_main.*
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.Serializable
+import java.util.*
 
 class MainActivity : AppCompatActivity() {
     var IMAGE_PICK_CODE = 1000
@@ -27,6 +31,7 @@ class MainActivity : AppCompatActivity() {
     lateinit var imageUri:Uri
     lateinit var name:String
     lateinit var pass:String
+    lateinit var p : Profile
 
 
 
@@ -43,6 +48,13 @@ class MainActivity : AppCompatActivity() {
         UpdateBtn.setOnClickListener(){
             update()
         }
+        btnChangePass.setOnClickListener {
+            val intent = Intent(this,passwordPage::class.java)
+//            intent.putExtra("name",p.name)
+//            intent.putExtra("pass",p.password)
+//            intent.putExtra("uri",p.imageint)
+            startActivity(intent)
+        }
     }
 
     private fun getProfile() {
@@ -58,8 +70,10 @@ class MainActivity : AppCompatActivity() {
                     imageUri = Uri.parse(it.get("pic").toString())
                     pass = it.get("pass").toString()
 
+                    p = Profile(it.get("imageint").toString(),name,pass)
+
                     try {
-                        Picasso.get().load(it.get("pic").toString()).into(circularImageView)
+                        Picasso.get().load(it.get("imageint").toString()).into(circularImageView)
                     }catch (e: Throwable) {
                         e.printStackTrace()
                     }
@@ -75,45 +89,60 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun update() {
+        if (imageUri == null) return
+        val filename = UUID.randomUUID().toString()
+        val ref = FirebaseStorage.getInstance().getReference("/image/$filename")
 
-//        val bitmap = (circularImageView.drawable as BitmapDrawable).bitmap
-//        val baos = ByteArrayOutputStream()
+        ref.putFile(imageUri!!)
+            .addOnSuccessListener{
+                Log.d("UpdateActivity", "Successfully updated: ${it.metadata?.path}")
+                ref.downloadUrl.addOnSuccessListener {
+                    Log.d("UpdateActivity","File Location: $it")
+                    Toast.makeText(this,"yes",Toast.LENGTH_SHORT).show()
+                    p = Profile(it.toString(),name,pass)
+                    updateUser(it.toString())
+                }
+            }
+            .addOnFailureListener{
+                Toast.makeText(this,it.toString(),Toast.LENGTH_SHORT).show()
+                Log.d("RegisterActivity", "Failed to upload image")
+            }
 
-//        if(imageUri!=null){
-//            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, baos)
-//            val data = baos.toByteArray()
-//            db.collection("Profile").document("jacky")
-//
-//
-//            ref.update("pic",imageUri)
-//                .addOnSuccessListener { Toast.makeText(this,"success update",Toast.LENGTH_SHORT).show()}
-//                .addOnFailureListener {Toast.makeText(this,"fail update",Toast.LENGTH_SHORT).show() }
-//        }
+    }
 
-
+    private fun updateUser(imageURI: String) {
+//        Toast.makeText(this,imageURI.toString(),Toast.LENGTH_SHORT).show()
+        db.collection("Profile").document("jacky")
+            .set(p)
+            .addOnSuccessListener {
+                Toast.makeText(this,"sucess",Toast.LENGTH_SHORT).show()
+            }
+            .addOnFailureListener{
+                Toast.makeText(this,"fail",Toast.LENGTH_SHORT).show()
+            }
     }
 
     private fun openFileChooser() {
 
-            val builder = AlertDialog.Builder(this)
-            builder.setTitle("Profile pic")
-            builder.setMessage("Choose the method u want")
-            builder.setPositiveButton("take selfie"){dialog, which ->
-                Toast.makeText(this,"smile",Toast.LENGTH_SHORT).show()
-                val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-
-                if (intent.resolveActivity(packageManager) != null) {
-                    startActivityForResult(Intent.createChooser(intent,"select photo"), CAMERA_REQUEST_CODE)
-                }
-            }
-            builder.setNegativeButton("gallery"){dialog, which ->
+//            val builder = AlertDialog.Builder(this)
+//            builder.setTitle("Profile pic")
+//            builder.setMessage("Choose the method u want")
+//            builder.setPositiveButton("take selfie"){dialog, which ->
+//                Toast.makeText(this,"smile",Toast.LENGTH_SHORT).show()
+//                val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+//
+//                if (intent.resolveActivity(packageManager) != null) {
+//                    startActivityForResult(Intent.createChooser(intent,"select photo"), CAMERA_REQUEST_CODE)
+//                }
+//            }
+//            builder.setNegativeButton("gallery"){dialog, which ->
                 Toast.makeText(this,"select a photo",Toast.LENGTH_SHORT).show()
                 val intent=Intent()
                 intent.type="image/*"
                 intent.action = Intent.ACTION_GET_CONTENT
                 startActivityForResult(Intent.createChooser(intent,"select picture"),IMAGE_PICK_CODE)
-            }
-        builder.show()
+//            }
+//        builder.show()
 
     }
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
